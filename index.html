@@ -5,95 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dissecador Forense de PDF | Compliance</title>
     
-    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
-    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
 
     <style>
-        :root {
-            --bg-color: #0d1117;
-            --text-color: #c9d1d9;
-            --accent-color: #58a6ff;
-            --border-color: #30363d;
-            --success-color: #238636;
-            --warning-color: #d29922;
-        }
-
-        body {
-            font-family: 'Courier New', Courier, monospace;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            line-height: 1.6;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-        }
-
-        h1 {
-            color: var(--accent-color);
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 10px;
-        }
-
-        .input-section {
-            background-color: #161b22;
-            padding: 20px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-
-        textarea {
-            width: 100%;
-            height: 200px;
-            background-color: #0d1117;
-            color: #79c0ff;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 10px;
-            font-family: monospace;
-            resize: vertical;
-        }
-
-        button {
-            background-color: var(--success-color);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-size: 16px;
-            cursor: pointer;
-            margin-top: 10px;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-        }
-
-        button:hover {
-            opacity: 0.9;
-        }
-
-        #output {
-            background-color: #161b22;
-            padding: 20px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-            white-space: pre-wrap; /* Mantém a formatação do Python */
-            min-height: 100px;
-        }
-
-        .loading {
-            color: var(--warning-color);
-            display: none;
-        }
+        :root { --bg-color: #0d1117; --text-color: #c9d1d9; --accent-color: #58a6ff; --border-color: #30363d; --success-color: #238636; }
+        body { font-family: 'Courier New', Courier, monospace; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; line-height: 1.6; }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { color: var(--accent-color); border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        .input-section { background-color: #161b22; padding: 20px; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 20px; }
+        label { display: block; margin-bottom: 10px; font-weight: bold; }
+        textarea { width: 100%; height: 200px; background-color: #0d1117; color: #79c0ff; border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; font-family: monospace; resize: vertical; }
+        button { background-color: var(--success-color); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px; font-family: 'Courier New', monospace; font-weight: bold; }
+        button:hover { opacity: 0.9; }
+        #output { background-color: #161b22; padding: 20px; border-radius: 6px; border: 1px solid var(--border-color); white-space: pre-wrap; min-height: 100px; margin-top: 20px; border-left: 5px solid var(--accent-color);}
+        .loading { color: #d29922; font-size: 0.9em; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -105,129 +31,126 @@
     <div class="input-section">
         <label for="pdf_content">Cole o Código Bruto do PDF aqui (Texto):</label>
         <textarea id="pdf_content" placeholder="Cole o conteúdo do arquivo .txt ou PDF aqui (começando com %PDF-1.7...)"></textarea>
-        <button id="analyze-btn" py-click="analisar_codigo">Executar Análise Forense</button>
-        <p id="loading-msg" class="loading">Processando dados forenses...</p>
+        
+        <button id="analyze-btn">Executar Análise Forense</button>
+        <div id="status_msg" class="loading">Sistema pronto. Cole o código e clique no botão.</div>
     </div>
 
     <h3>Relatório de Análise:</h3>
-    <div id="output">O relatório aparecerá aqui após a análise...</div>
+    <div id="output">Aguardando dados...</div>
 </div>
 
-<py-script>
+<script type="py">
+from pyscript import when
+from js import document
 import re
 import uuid
 import struct
-from datetime import datetime
 
 def formatar_data_pdf(raw_date):
-    # Formata datas do tipo D:20251013...
     try:
         limpo = raw_date.replace("D:", "").replace("'", "")
         data_parte = limpo[:14]
-        fuso_sinal = limpo[14] if len(limpo) > 14 else "+"
-        fuso_horas = limpo[15:17] if len(limpo) > 16 else "00"
-        
-        # Formatação visual
         ano = data_parte[0:4]
         mes = data_parte[4:6]
         dia = data_parte[6:8]
         hora = data_parte[8:10]
-        min = data_parte[10:12]
-        
-        return f"{dia}/{mes}/{ano} às {hora}:{min} (UTC {fuso_sinal}{fuso_horas}:00)"
+        minuto = data_parte[10:12]
+        return f"{dia}/{mes}/{ano} às {hora}:{minuto}"
     except:
         return raw_date
 
-def analisar_codigo(*args):
-    # Pega o conteúdo da caixa de texto do HTML
-    conteudo = Element("pdf_content").element.value
+@when("click", "#analyze-btn")
+def processar_analise(event):
+    # Pega os elementos da tela via Javascript Bridge
+    input_box = document.getElementById("pdf_content")
+    output_box = document.getElementById("output")
     
+    conteudo = input_box.value
+
     if not conteudo:
-        Element("output").write("Erro: A caixa de texto está vazia. Cole o código do PDF primeiro.")
+        output_box.innerText = "ERRO: A caixa de texto está vazia."
         return
 
+    output_box.innerText = "Processando..."
     relatorio = []
-    relatorio.append("--- RELATÓRIO TÉCNICO DE COMPLIANCE ---\n")
-
-    # 1. Análise de Identidade e Software
-    autor = re.search(r'/Author\((.*?)\)', conteudo)
-    criador = re.search(r'/Creator\((.*?)\)', conteudo)
     
-    autor_str = autor.group(1).replace('\x00', '') if autor else "Desconhecido"
-    criador_str = criador.group(1).replace('\x00', '') if criador else "Desconhecido"
-    
-    relatorio.append(f"[1] IDENTIDADE DECLARADA")
-    relatorio.append(f"    Autor:    {autor_str}")
-    relatorio.append(f"    Software: {criador_str}")
+    try:
+        relatorio.append("--- RELATÓRIO TÉCNICO DE COMPLIANCE ---\n")
 
-    # 2. Data e Fuso Horário
-    data_criacao = re.search(r'/CreationDate\((.*?)\)', conteudo)
-    if data_criacao:
-        relatorio.append(f"\n[2] CRONOLOGIA E LOCALIZAÇÃO TEMPORAL")
-        relatorio.append(f"    Data Real: {formatar_data_pdf(data_criacao.group(1))}")
-        if "-03'00" in data_criacao.group(1):
-             relatorio.append("    Análise de Fuso: UTC -03:00 confirmada (Compatível com Brasil).")
-
-    # 3. Análise de IDs (Integridade)
-    doc_id_match = re.search(r'xmpMM:DocumentID>uuid:(.*?)</xmpMM:DocumentID', conteudo)
-    inst_id_match = re.search(r'xmpMM:InstanceID>uuid:(.*?)</xmpMM:InstanceID', conteudo)
-    
-    relatorio.append(f"\n[3] INTEGRIDADE E UUIDs")
-    if doc_id_match and inst_id_match:
-        doc_id = doc_id_match.group(1)
-        inst_id = inst_id_match.group(1)
+        # 1. IDENTIDADE
+        autor = re.search(r'/Author\((.*?)\)', conteudo)
+        criador = re.search(r'/Creator\((.*?)\)', conteudo)
         
-        relatorio.append(f"    Document ID: {doc_id}")
-        relatorio.append(f"    Instance ID: {inst_id}")
-        
-        if doc_id == inst_id:
-            relatorio.append("    VEREDITO: ✅ ARQUIVO ORIGINAL (Não editado após exportação)")
+        relatorio.append("[1] IDENTIDADE DECLARADA")
+        if autor:
+            clean_autor = autor.group(1).replace('\x00', '')
+            relatorio.append(f"    Autor:    {clean_autor}")
         else:
-            relatorio.append("    VEREDITO: ⚠️ ARQUIVO MODIFICADO OU DERIVADO")
-
-        # Versão do UUID
-        try:
-            versao = uuid.UUID(doc_id).version
-            relatorio.append(f"    Tipo de UUID: v{versao} (Pseudo-Aleatório/Privacidade)")
-            if versao == 4:
-                relatorio.append("    Nota: UUID v4 não contém IP nem MAC Address (Padrão Microsoft moderno).")
-        except:
-            pass
-    else:
-        relatorio.append("    Não foram encontrados metadados XMP suficientes para validação cruzada.")
-
-    # 4. Análise de Links (Vínculo Corporativo)
-    links = re.findall(r'/URI\((http.*?)\)', conteudo)
-    if links:
-        relatorio.append(f"\n[4] VÍNCULOS EXTERNOS ENCONTRADOS")
-        for link in links:
-            relatorio.append(f"    -> {link}")
-            if "souzafreitas" in link:
-                relatorio.append("    [!] Vínculo com domínio 'souzafreitas.com.br' detectado.")
-
-    # 5. Validação de Assinatura Windows (Endianness)
-    trailer_id = re.search(r'/ID\[<(.*?)>', conteudo)
-    if doc_id_match and trailer_id:
-        uuid_str = doc_id_match.group(1)
-        hex_trailer = trailer_id.group(1)
-        
-        # Simula a inversão de bytes da Microsoft
-        try:
-            u = uuid.UUID(uuid_str)
-            bytes_ms = struct.pack('<IHH', u.time_low, u.time_mid, u.time_hi_version) + u.bytes[8:]
-            hex_ms = bytes_ms.hex().upper()
+            relatorio.append("    Autor:    Não detectado")
             
-            if hex_ms == hex_trailer:
-                relatorio.append(f"\n[5] ASSINATURA TÉCNICA DO SISTEMA")
-                relatorio.append("    ✅ Padrão 'Little Endian' detectado.")
-                relatorio.append("    Confirmação: Arquivo gerado em ambiente Microsoft Windows nativo.")
-        except:
-            pass
+        if criador:
+            clean_criador = criador.group(1).replace('\x00', '')
+            relatorio.append(f"    Software: {clean_criador}")
 
-    # Imprime tudo na div de output
-    Element("output").write("\n".join(relatorio))
+        # 2. DATA
+        dt = re.search(r'/CreationDate\((.*?)\)', conteudo)
+        if dt:
+            relatorio.append("\n[2] CRONOLOGIA E LOCAL")
+            data_raw = dt.group(1)
+            relatorio.append(f"    Data: {formatar_data_pdf(data_raw)}")
+            if "-03'00" in data_raw:
+                relatorio.append("    Fuso: -03:00 (Compatível com Horário de Brasília)")
 
-</py-script>
+        # 3. UUIDS E INTEGRIDADE
+        relatorio.append("\n[3] INTEGRIDADE E UUIDs")
+        doc_id = re.search(r'xmpMM:DocumentID>uuid:(.*?)</xmpMM:DocumentID', conteudo)
+        inst_id = re.search(r'xmpMM:InstanceID>uuid:(.*?)</xmpMM:InstanceID', conteudo)
+        
+        if doc_id and inst_id:
+            d_id = doc_id.group(1)
+            i_id = inst_id.group(1)
+            
+            relatorio.append(f"    Document ID: {d_id}")
+            relatorio.append(f"    Instance ID: {i_id}")
+            
+            if d_id == i_id:
+                relatorio.append("    VEREDITO: ✅ ARQUIVO ORIGINAL (Sem re-salvamento)")
+            else:
+                relatorio.append("    VEREDITO: ⚠️ ARQUIVO MODIFICADO")
+        else:
+            relatorio.append("    Metadados XMP incompletos no código colado.")
+
+        # 4. VINCULOS
+        links = re.findall(r'/URI\((http.*?)\)', conteudo)
+        if links:
+            relatorio.append("\n[4] VÍNCULOS ENCONTRADOS")
+            for link in links:
+                relatorio.append(f"    -> {link}")
+
+        # 5. ASSINATURA WINDOWS
+        trailer_id = re.search(r'/ID\[<(.*?)>', conteudo)
+        if doc_id and trailer_id:
+            try:
+                # Checagem de Endianness
+                u = uuid.UUID(doc_id.group(1))
+                # Pack Little Endian para Microsoft
+                bytes_ms = struct.pack('<IHH', u.time_low, u.time_mid, u.time_hi_version) + u.bytes[8:]
+                hex_ms = bytes_ms.hex().upper()
+                
+                if hex_ms == trailer_id.group(1):
+                    relatorio.append("\n[5] ASSINATURA TÉCNICA")
+                    relatorio.append("    ✅ Byte-order Little Endian confirmado.")
+                    relatorio.append("    Origem: Gerado em Microsoft Windows.")
+            except:
+                pass
+
+    except Exception as e:
+        relatorio.append(f"\nERRO CRÍTICO DE LEITURA: {str(e)}")
+
+    # Exibe o resultado
+    output_box.innerText = "\n".join(relatorio)
+</script>
 
 </body>
 </html>
